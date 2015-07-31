@@ -1137,6 +1137,10 @@ class TcpConnection extends Connection
                         @rawSocket = null
                     )
                     @rawSocket.end()
+                    @rawSocket.setTimeout(50, =>
+                        @rawSocket.destroy()
+                        @rawSocket.emit("close")
+                    )
                 else
                     # If the rawSocket is already closed, there's no
                     # reason to wait for a 'close' event that will
