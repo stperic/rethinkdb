@@ -1,14 +1,15 @@
 class ReqlError extends Error
-class ReqlCompileError extends ReqlError
-class RqlClientError extends ReqlError
-
-class ReqlDriverError extends ReqlError
     constructor: (msg) ->
         @name = @constructor.name
         @msg = msg
         @message = msg
         if Error.captureStackTrace?
             Error.captureStackTrace @, @
+
+class ReqlCompileError extends ReqlError
+class ReqlClientError extends ReqlError
+
+class ReqlDriverError extends ReqlError
 
 class ReqlAuthError extends ReqlDriverError
 
@@ -29,7 +30,7 @@ class ReqlRuntimeError extends ReqlError
 
 class ReqlQueryLogicError extends ReqlRuntimeError
 class ReqlNonExistenceError extends ReqlQueryLogicError
-class ReqlResourceLimitError extends ReqlRuntimeERror
+class ReqlResourceLimitError extends ReqlRuntimeError
 class ReqlUserError extends ReqlRuntimeError
 class ReqlInternalError extends ReqlRuntimeError
 class ReqlAvailabilityError extends ReqlRuntimeError
