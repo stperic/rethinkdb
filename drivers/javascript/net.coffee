@@ -231,10 +231,10 @@ class Connection extends events.EventEmitter
         # callback that was passed to the constructor (`callback`)
         errCallback = (e) =>
             @removeListener 'connect', conCallback
-            if e instanceof err.RqlDriverError
+            if e instanceof err.ReqlDriverError
                 callback e
             else
-                callback new err.RqlDriverError "Could not connect to #{@host}:#{@port}.\n#{e.message}"
+                callback new err.ReqlDriverError "Could not connect to #{@host}:#{@port}.\n#{e.message}"
         @once 'error', errCallback
 
         conCallback = =>
@@ -368,7 +368,7 @@ class Connection extends events.EventEmitter
                         # response and the original query
                         # (`root`). Then we delete the token from
                         # `@outstandingCallbacks`.
-                        cb mkErr(err.RqlCompileError, response, root)
+                        cb mkErr(err.ReqlCompileError, response, root)
                         @_delQuery(token)
                     when protoResponseType.CLIENT_ERROR
                         # Client errors are returned when the client
@@ -376,7 +376,7 @@ class Connection extends events.EventEmitter
                         # serialized right, or the handshake is done
                         # incorrectly etc. Hopefully end users of the
                         # driver should never see these.
-                        cb mkErr(err.RqlClientError, response, root)
+                        cb mkErr(err.ReqlClientError, response, root)
                         @_delQuery(token)
                     when protoResponseType.RUNTIME_ERROR
                         # Runtime errors are the most common type of
@@ -487,7 +487,7 @@ class Connection extends events.EventEmitter
                         @_delQuery(token)
                         cb null, null
                     else
-                        cb new err.RqlDriverError "Unknown response type"
+                        cb new err.ReqlDriverError "Unknown response type"
         else
             # We just ignore tokens we don't have a record of. This is
             # what the other drivers do as well.
@@ -503,7 +503,7 @@ class Connection extends events.EventEmitter
             # When calling like `.close({...}, function(...){ ... })`
             opts = optsOrCallback
             unless Object::toString.call(opts) is '[object Object]'
-                throw new err.RqlDriverError "First argument to two-argument `close` must be an object."
+                throw new err.ReqlDriverError "First argument to two-argument `close` must be an object."
             cb = callback
         else if Object::toString.call(optsOrCallback) is '[object Object]'
             # When calling like `.close({...})`
@@ -524,7 +524,7 @@ class Connection extends events.EventEmitter
             # outstanding `noreply` queries. So we throw an error if
             # anything else is passed.
             unless key in ['noreplyWait']
-                throw new err.RqlDriverError "First argument to two-argument `close` must be { noreplyWait: <bool> }."
+                throw new err.ReqlDriverError "First argument to two-argument `close` must be { noreplyWait: <bool> }."
 
         # If we're currently in the process of closing, just add the
         # callback to the current promise
@@ -610,7 +610,7 @@ class Connection extends events.EventEmitter
         # connection is closed completely.
         unless @open
             return new Promise( (resolve, reject) ->
-                reject(new err.RqlDriverError "Connection is closed.")
+                reject(new err.ReqlDriverError "Connection is closed.")
             ).nodeify callback
 
         # Since `noreplyWait` is invoked just like any other query, we
@@ -658,7 +658,7 @@ class Connection extends events.EventEmitter
             if value.cursor?
                 value.cursor._addResponse(response)
             else if value.cb?
-                value.cb mkErr(err.RqlRuntimeError, response, value.root)
+                value.cb mkErr(util.errorClass(response.e), response, value.root)
 
         @outstandingCallbacks = {}
 
@@ -733,7 +733,7 @@ class Connection extends events.EventEmitter
     # module](ast.html)
     _start: (term, cb, opts) ->
         # Obviously, you can't query with a closed connection.
-        unless @open then throw new err.RqlDriverError "Connection is closed."
+        unless @open then throw new err.ReqlDriverError "Connection is closed."
 
         # Here is where the token for the query is
         # generated. @nextToken is only ever incremented here and in
@@ -817,7 +817,7 @@ class Connection extends events.EventEmitter
     # (`CONTINUE`). Feeds may block indefinitely, but cursors should
     # return quickly.
     _continueQuery: (token) ->
-        unless @open then throw new err.RqlDriverError "Connection is closed."
+        unless @open then throw new err.ReqlDriverError "Connection is closed."
 
         query =
             type: protoQueryType.CONTINUE
@@ -830,7 +830,7 @@ class Connection extends events.EventEmitter
     # This method sends a notification to the server that we don't
     # care about the rest of the results on a cursor or feed (`STOP`).
     _endQuery: (token) ->
-        unless @open then throw new err.RqlDriverError "Connection is closed."
+        unless @open then throw new err.ReqlDriverError "Connection is closed."
 
         query =
             type: protoQueryType.STOP
@@ -893,7 +893,7 @@ class TcpConnection extends Connection
     constructor: (host, callback) ->
         # Bail out early if we happen to be in the browser
         unless TcpConnection.isAvailable()
-            throw new err.RqlDriverError "TCP sockets are not available in this environment"
+            throw new err.ReqlDriverError "TCP sockets are not available in this environment"
 
         # Invoke the superclass's constructor. This initializes the
         # attributes `@host`, `@port`, `@db`, `@authKey` and
@@ -924,7 +924,7 @@ class TcpConnection extends Connection
         # be cancelled upon successful connection.
         timeout = setTimeout( (()=>
             @rawSocket.destroy()
-            @emit 'error', new err.RqlDriverError "Handshake timedout"
+            @emit 'error', new err.ReqlDriverError "Handshake timedout"
         ), @timeout*1000)
 
         # If any other kind of error occurs, we also want to cancel
@@ -1030,7 +1030,7 @@ class TcpConnection extends Connection
                             # string but `SUCCESS` is an error
                             # indicating the problem, and that we
                             # should report the error to the user.
-                            @emit 'error', new err.RqlDriverError "Server dropped connection with message: \"" + status_str.trim() + "\""
+                            @emit 'error', new err.ReqlDriverError "Server dropped connection with message: \"" + status_str.trim() + "\""
                             return
 
             # Register the handshake callback on the socket. Once the
@@ -1239,7 +1239,7 @@ class HttpConnection extends Connection
     constructor: (host, callback) ->
         # A quick check to ensure we can create an `HttpConnection`
         unless HttpConnection.isAvailable()
-            throw new err.RqlDriverError "XMLHttpRequest is not available in this environment"
+            throw new err.ReqlDriverError "XMLHttpRequest is not available in this environment"
         # Call the superclass constructor. This initializes the
         # attributes `@host`, `@port`, `@db`, `@authKey`, `@timeout`,
         # `@outstandingCallbacks`, `@nextToken`, `@open`, `@closing`,
@@ -1294,7 +1294,7 @@ class HttpConnection extends Connection
                     @emit 'connect'
                 else
                     # In case we get anything other than a 200, raise an error.
-                    @emit 'error', new err.RqlDriverError "XHR error, http status #{xhr.status}."
+                    @emit 'error', new err.ReqlDriverError "XHR error, http status #{xhr.status}."
         # Send the xhr, and store it in the instance for later.
         xhr.send()
 
@@ -1351,7 +1351,7 @@ class HttpConnection extends Connection
             opts = {}
             cb = optsOrCallback
         unless not cb? or typeof cb is 'function'
-            throw new err.RqlDriverError "Final argument to `close` must be a callback function or object."
+            throw new err.ReqlDriverError "Final argument to `close` must be a callback function or object."
 
         # This would simply be `super(opts, wrappedCb)`, if we were
         # not in the varar anonymous function
@@ -1469,7 +1469,7 @@ module.exports.connect = varar 0, 2, (hostOrCallback, callback) ->
             else if HttpConnection.isAvailable()
                 new HttpConnection host, callback
             else
-                throw new err.RqlDriverError "Neither TCP nor HTTP avaiable in this environment"
+                throw new err.ReqlDriverError "Neither TCP nor HTTP avaiable in this environment"
 
         wrappedCb = (err, result) ->
             if (err)
