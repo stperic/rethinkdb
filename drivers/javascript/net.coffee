@@ -91,6 +91,12 @@ aropt = util.aropt
 mkAtom = util.mkAtom
 mkErr = util.mkErr
 
+# These are strings returned by the server after a handshake
+# request. Since they must match exactly they're defined in
+# "constants" here at the top
+HANDSHAKE_SUCCESS = "SUCCESS"
+HANDSHAKE_AUTHFAIL = "ERROR: Incorrect authorization key.\n"
+
 # ### Connection
 #
 # Connection is the base class for both `TcpConnection` and
@@ -1003,7 +1009,7 @@ class TcpConnection extends Connection
                         clearTimeout(timeout)
 
                         # Finally, check the status string.
-                        if status_str == "SUCCESS"
+                        if status_str == HANDSHAKE_SUCCESS
                             # Set up the `_data` method to receive all
                             # further responses from the server. This
                             # callback is only for the initial
@@ -1025,6 +1031,12 @@ class TcpConnection extends Connection
                             # function.
                             @emit 'connect'
                             return
+                        else if status_str == HANDSHAKE_AUTHFAIL
+                            # Since there's a special error for
+                            # authorization failure, we have to look
+                            # for this specific error message.
+                            @emit 'error',
+                                new err.ReqlAuthError("Incorrect authorization key.")
                         else
                             # The protocol dictates that any other
                             # string but `SUCCESS` is an error
