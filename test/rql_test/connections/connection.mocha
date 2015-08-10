@@ -133,7 +133,10 @@ describe("JavaScript Callback style", function() {
             var server = net.createServer(function(c) {}); // Setup dummy sever
             server.listen(0, function() {
                 var badPort = server.address().port;
-                r.connect({port:badPort, timeout:.01}, givesError("ReqlDriverError", "Handshake timedout", done));
+                r.connect({port:badPort, timeout:.01}, givesError(
+                    "ReqlTimeoutError",
+                    "Could not connect to localhost:"+badPort+
+                    ", operation timed out.", done));
             });
         });
 
@@ -164,7 +167,7 @@ describe("JavaScript Callback style", function() {
             )
         });
 
-        describe('with authorization key', function() {
+        describe('with authentication key', function() {
             // ensure reqlConn is valid before each test
             beforeEach(function() { return withConnection() });
 
@@ -178,10 +181,12 @@ describe("JavaScript Callback style", function() {
                 })
             });
 
-            it("fails when no authorization key is needed", function(done){
+            it("fails when no authentication key is needed", function(done){
                 r.connect(
                     {host:serverHost, port:driverPort, authKey: "hunter2"},
-                    givesError("ReqlAuthError", "Incorrect authorization key.", done)
+                    givesError("ReqlAuthError",
+                               "Could not connect to "+serverHost+":"+driverPort+
+                               ", incorrect authentication key.", done)
                 );
             });
 
@@ -200,13 +205,15 @@ describe("JavaScript Callback style", function() {
                 });
             });
 
-            it("fails with wrong authorization key", function(done){
+            it("fails with wrong authentication key", function(done){
                 r.db('rethinkdb').table('cluster_config').get('auth').update({auth_key: "hunter4"}).run(reqlConn, function(err, result) {
                     assert.ifError(err);
                     assert.equal(result['errors'], 0, 'Failed setting auth key: ' + JSON.stringify(result))
                     r.connect(
                         {host:serverHost, port:driverPort, authKey: "hunter-bad"},
-                        givesError("ReqlAuthError", "Incorrect authorization key.", done)
+                        givesError("ReqlAuthError",
+                                   "Could not connect to "+serverHost+":"+driverPort+
+                                   ", incorrect authentication key.", done)
                     );
                 });
             });

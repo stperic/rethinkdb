@@ -7,7 +7,6 @@ class ReqlError extends Error
             Error.captureStackTrace @, @
 
 class ReqlCompileError extends ReqlError
-class ReqlClientError extends ReqlError
 
 class ReqlDriverError extends ReqlError
 
@@ -33,6 +32,7 @@ class ReqlNonExistenceError extends ReqlQueryLogicError
 class ReqlResourceLimitError extends ReqlRuntimeError
 class ReqlUserError extends ReqlRuntimeError
 class ReqlInternalError extends ReqlRuntimeError
+class ReqlTimeoutError extends ReqlError
 class ReqlAvailabilityError extends ReqlRuntimeError
 class ReqlOpFailedError extends ReqlAvailabilityError
 class ReqlOpIndeterminateError extends ReqlAvailabilityError
@@ -100,8 +100,7 @@ module.exports = {
     ReqlCompileError
     RqlCompileError: ReqlCompileError
 
-    ReqlClientError
-    RqlClientError: ReqlClientError
+    RqlClientError: ReqlDriverError
 
     ReqlRuntimeError
     RqlRuntimeError: ReqlRuntimeError
@@ -113,6 +112,7 @@ module.exports = {
     ReqlResourceLimitError
     ReqlUserError
     ReqlInternalError
+    ReqlTimeoutError
 
     ReqlAvailabilityError
     ReqlOpFailedError

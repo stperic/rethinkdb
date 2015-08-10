@@ -120,9 +120,11 @@ describe('JavaScript Promise style', function() {
                 .then(function() {
                     done(new Error('Connection did not return an error on bad port: ' + badPort));
                 })
-                .catch(r.Error.ReqlDriverError, function(err) {
+                .catch(r.Error.ReqlTimeoutError, function(err) {
                     try {
-                        assert.equal(err.message, "Handshake timedout");
+                        assert.equal(err.message,
+                                     "Could not connect to localhost:"+badPort+
+                                     ", operation timed out.");
                         done();
                     } catch (err) {
                         done(err);
@@ -222,7 +224,9 @@ describe('JavaScript Promise style', function() {
                     throw new Error('Unexpectedly connected with bad AuthKey');
                 })
                 .catch(r.Error.ReqlAuthError, function(err) {
-                    assert.equal(err.message, 'Incorrect authorization key.');
+                    assert.equal(err.message,
+                                 "Could not connect to "+serverHost+":"+driverPort+
+                                 ', incorrect authentication key.');
                 })
             });
         });

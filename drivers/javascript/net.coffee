@@ -237,7 +237,7 @@ class Connection extends events.EventEmitter
         # callback that was passed to the constructor (`callback`)
         errCallback = (e) =>
             @removeListener 'connect', conCallback
-            if e instanceof err.ReqlDriverError
+            if e instanceof err.ReqlError
                 callback e
             else
                 callback new err.ReqlDriverError "Could not connect to #{@host}:#{@port}.\n#{e.message}"
@@ -382,7 +382,7 @@ class Connection extends events.EventEmitter
                         # serialized right, or the handshake is done
                         # incorrectly etc. Hopefully end users of the
                         # driver should never see these.
-                        cb mkErr(err.ReqlClientError, response, root)
+                        cb mkErr(err.ReqlDriverError, response, root)
                         @_delQuery(token)
                     when protoResponseType.RUNTIME_ERROR
                         # Runtime errors are the most common type of
@@ -930,7 +930,8 @@ class TcpConnection extends Connection
         # be cancelled upon successful connection.
         timeout = setTimeout( (()=>
             @rawSocket.destroy()
-            @emit 'error', new err.ReqlDriverError "Handshake timedout"
+            @emit 'error', new err.ReqlTimeoutError(
+                "Could not connect to #{@host}:#{@port}, operation timed out.")
         ), @timeout*1000)
 
         # If any other kind of error occurs, we also want to cancel
@@ -1036,7 +1037,9 @@ class TcpConnection extends Connection
                             # authorization failure, we have to look
                             # for this specific error message.
                             @emit 'error',
-                                new err.ReqlAuthError("Incorrect authorization key.")
+                                new err.ReqlAuthError(
+                                    """Could not connect to #{@host}:#{@port}, \
+                                    incorrect authentication key.""")
                         else
                             # The protocol dictates that any other
                             # string but `SUCCESS` is an error
