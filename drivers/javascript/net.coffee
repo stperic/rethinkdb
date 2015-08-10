@@ -509,7 +509,7 @@ class Connection extends events.EventEmitter
             # When calling like `.close({...}, function(...){ ... })`
             opts = optsOrCallback
             unless Object::toString.call(opts) is '[object Object]'
-                throw new err.ReqlDriverError "First argument to two-argument `close` must be an object."
+                throw new err.ReqlCompileError "First argument to two-argument `close` must be an object."
             cb = callback
         else if Object::toString.call(optsOrCallback) is '[object Object]'
             # When calling like `.close({...})`
@@ -530,7 +530,7 @@ class Connection extends events.EventEmitter
             # outstanding `noreply` queries. So we throw an error if
             # anything else is passed.
             unless key in ['noreplyWait']
-                throw new err.ReqlDriverError "First argument to two-argument `close` must be { noreplyWait: <bool> }."
+                throw new err.ReqlCompileError "First argument to two-argument `close` must be { noreplyWait: <bool> }."
 
         # If we're currently in the process of closing, just add the
         # callback to the current promise
@@ -1366,7 +1366,7 @@ class HttpConnection extends Connection
             opts = {}
             cb = optsOrCallback
         unless not cb? or typeof cb is 'function'
-            throw new err.ReqlDriverError "Final argument to `close` must be a callback function or object."
+            throw new err.ReqlCompileError "Final argument to `close` must be a callback function or object."
 
         # This would simply be `super(opts, wrappedCb)`, if we were
         # not in the varar anonymous function

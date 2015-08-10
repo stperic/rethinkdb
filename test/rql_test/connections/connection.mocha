@@ -370,7 +370,7 @@ describe("JavaScript Callback style", function() {
         });
 
         it("errors with an extra argument", function(done){
-            r.expr(1).run(reqlConn, givesError("ReqlDriverError", "Second argument to `run` cannot be a function if a third argument is provided.", done), 1)
+            r.expr(1).run(reqlConn, givesError("ReqlCompileError", "Second argument to `run` cannot be a function if a third argument is provided.", done), 1)
         });
 
         it("errors with a non-function callback", function(done){

@@ -77,7 +77,7 @@ var withTableCursor = function() {
 
 var argErrorTest = function(expectedMsg) {
     return function(err) {
-        return (err instanceof r.Error.ReqlDriverError) && (expectedMsg == err.msg)
+        return (err instanceof r.Error.ReqlCompileError) && (expectedMsg == err.msg)
     }
 }
 

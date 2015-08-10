@@ -11,7 +11,7 @@ plural = (number) -> if number == 1 then "" else "s"
 # called with the correct number of arguments
 module.exports.ar = (fun) -> (args...) ->
     if args.length isnt fun.length
-        throw new err.ReqlDriverError "Expected #{fun.length} argument#{plural(fun.length)} but found #{args.length}."
+        throw new err.ReqlCompileError "Expected #{fun.length} argument#{plural(fun.length)} but found #{args.length}."
     fun.apply(@, args)
 
 # Like ar for variable argument functions. Takes minimum
@@ -19,10 +19,10 @@ module.exports.ar = (fun) -> (args...) ->
 module.exports.varar = (min, max, fun) -> (args...) ->
     if (min? and args.length < min) or (max? and args.length > max)
         if min? and not max?
-            throw new err.ReqlDriverError "Expected #{min} or more arguments but found #{args.length}."
+            throw new err.ReqlCompileError "Expected #{min} or more arguments but found #{args.length}."
         if max? and not min?
-            throw new err.ReqlDriverError "Expected #{max} or fewer arguments but found #{args.length}."
-        throw new err.ReqlDriverError "Expected between #{min} and #{max} arguments but found #{args.length}."
+            throw new err.ReqlCompileError "Expected #{max} or fewer arguments but found #{args.length}."
+        throw new err.ReqlCompileError "Expected between #{min} and #{max} arguments but found #{args.length}."
     fun.apply(@, args)
 
 # Like ar but for functions that take an optional options dict as the last argument
@@ -37,9 +37,9 @@ module.exports.aropt = (fun) -> (args...) ->
 
     if expectedPosArgs isnt numPosArgs
         if expectedPosArgs isnt 1
-            throw new err.ReqlDriverError "Expected #{expectedPosArgs} arguments (not including options) but found #{numPosArgs}."
+            throw new err.ReqlCompileError "Expected #{expectedPosArgs} arguments but found #{numPosArgs}."
         else
-            throw new err.ReqlDriverError "Expected #{expectedPosArgs} argument (not including options) but found #{numPosArgs}."
+            throw new err.ReqlCompileError "Expected #{expectedPosArgs} argument but found #{numPosArgs}."
     fun.apply(@, args)
 
 module.exports.toArrayBuffer = (node_buffer) ->
@@ -79,7 +79,7 @@ convertPseudotype = (obj, opts) ->
                     # Just return the raw (`{'$reql_type$'...}`) object
                     obj
                 else
-                    throw new err.ReqlDriverError "Unknown timeFormat run option #{opts.timeFormat}."
+                    throw new err.ReqlCompileError "Unknown timeFormat run option #{opts.timeFormat}."
         when 'GROUPED_DATA'
             switch opts.groupFormat
                 when 'native', undefined
@@ -90,17 +90,17 @@ convertPseudotype = (obj, opts) ->
                 when 'raw'
                     obj
                 else
-                    throw new err.ReqlDriverError "Unknown groupFormat run option #{opts.groupFormat}."
+                    throw new err.ReqlCompileError "Unknown groupFormat run option #{opts.groupFormat}."
         when 'BINARY'
             switch opts.binaryFormat
                 when 'native', undefined
                     if not obj['data']?
-                        throw new err.ReqlDriverError "pseudo-type BINARY object missing expected field 'data'."
+                        throw new err.ReqlCompileError "pseudo-type BINARY object missing expected field 'data'."
                     (new Buffer(obj['data'], 'base64'))
                 when 'raw'
                     obj
                 else
-                    throw new err.ReqlDriverError "Unknown binaryFormat run option #{opts.binaryFormat}."
+                    throw new err.ReqlCompileError "Unknown binaryFormat run option #{opts.binaryFormat}."
         else
             # Regular object or unknown pseudo type
             obj

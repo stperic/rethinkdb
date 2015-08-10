@@ -176,7 +176,7 @@ class IterableResult
                 fn(cb)
             return p
         else
-            throw new err.ReqlDriverError "First argument to `next` must be a function or undefined."
+            throw new err.ReqlCompileError "First argument to `next` must be a function or undefined."
 
 
     close: varar 0, 1, (cb) ->
@@ -221,9 +221,9 @@ class IterableResult
 
     _each: varar(1, 2, (cb, onFinished) ->
         unless typeof cb is 'function'
-            throw new err.ReqlDriverError "First argument to each must be a function."
+            throw new err.ReqlCompileError "First argument to each must be a function."
         if onFinished? and typeof onFinished isnt 'function'
-            throw new err.ReqlDriverError "Optional second argument to each must be a function."
+            throw new err.ReqlCompileError "Optional second argument to each must be a function."
 
         stopFlag = false
         self = @
@@ -258,7 +258,7 @@ class IterableResult
             @each eachCb, onFinish
 
         if cb? and typeof cb isnt 'function'
-            throw new err.ReqlDriverError "First argument to `toArray` must be a function or undefined."
+            throw new err.ReqlCompileError "First argument to `toArray` must be a function or undefined."
 
         new Promise( (resolve, reject) =>
             toArrayCb = (err, result) ->

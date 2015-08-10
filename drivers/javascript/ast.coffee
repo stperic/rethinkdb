@@ -75,7 +75,7 @@ class TermBase
                     options = {}
                 else
                     #options is a function here
-                    return Promise.reject(new err.ReqlDriverError("Second argument to `run` cannot be a function if a third argument is provided.")).nodeify options
+                    return Promise.reject(new err.ReqlCompileError("Second argument to `run` cannot be a function if a third argument is provided.")).nodeify options
             # else we suppose that we have run(connection[, options][, callback])
         else if connection?.constructor is Object
             if @showRunWarning is true
@@ -413,7 +413,7 @@ class RDBOp extends RDBVal
                 if arg isnt undefined
                     rethinkdb.expr arg
                 else
-                    throw new err.ReqlDriverError "Argument #{i} to #{@st || @mt} may not be `undefined`."
+                    throw new err.ReqlCompileError "Argument #{i} to #{@st || @mt} may not be `undefined`."
         self.optargs = translateOptargs(optargs)
         return self
 
@@ -486,7 +486,7 @@ class MakeObject extends RDBOp
         self.optargs = {}
         for own key,val of obj
             if typeof val is 'undefined'
-                throw new err.ReqlDriverError "Object field '#{key}' may not be undefined"
+                throw new err.ReqlCompileError "Object field '#{key}' may not be undefined"
             self.optargs[key] = rethinkdb.expr val, nestingDepth-1
         return self
 
@@ -1005,7 +1005,7 @@ class Func extends RDBOp
 
         body = func(args...)
         if body is undefined
-            throw new err.ReqlDriverError "Anonymous function returned `undefined`. Did you forget a `return`?"
+            throw new err.ReqlCompileError "Anonymous function returned `undefined`. Did you forget a `return`?"
 
         argsArr = new MakeArray({}, argNums...)
         return super(optargs, argsArr, body)
@@ -1172,13 +1172,13 @@ class UUID extends RDBOp
 # Wrap a native JS value in an ReQL datum
 rethinkdb.expr = varar 1, 2, (val, nestingDepth=20) ->
     if val is undefined
-        throw new err.ReqlDriverError "Cannot wrap undefined with r.expr()."
+        throw new err.ReqlCompileError "Cannot wrap undefined with r.expr()."
 
     if nestingDepth <= 0
-        throw new err.ReqlDriverError "Nesting depth limit exceeded"
+        throw new err.ReqlCompileError "Nesting depth limit exceeded"
 
     if typeof nestingDepth isnt "number" or isNaN(nestingDepth)
-        throw new err.ReqlDriverError "Second argument to `r.expr` must be a number or undefined."
+        throw new err.ReqlCompileError "Second argument to `r.expr` must be a number or undefined."
 
     else if val instanceof TermBase
         val
