@@ -181,12 +181,14 @@ void _check_keys_are_present(store_t *store,
         ql::stream_t *stream = &groups.begin()->second;
         ASSERT_TRUE(stream != NULL);
         ASSERT_EQ(1ul, stream->size());
+        ql::raw_stream_t *raw_stream = &stream->begin().second.stream;
+        ASSERT_EQ(1ul, raw_stream->size());
 
         std::string expected_data = strprintf("{\"id\" : %d, \"sid\" : %d}", i, i * i);
         rapidjson::Document expected_value;
         expected_value.Parse(expected_data.c_str());
         ASSERT_EQ(ql::to_datum(expected_value, limits, reql_version_t::LATEST),
-                  stream->front().data);
+                  raw_stream->front().data);
     }
 }
 

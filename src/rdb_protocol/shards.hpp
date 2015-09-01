@@ -18,6 +18,7 @@
 #include "rdb_protocol/datum_utils.hpp"
 #include "rdb_protocol/profile.hpp"
 #include "rdb_protocol/wire_func.hpp"
+#include "region/region.hpp"
 
 enum class is_primary_t { NO, YES };
 
@@ -54,7 +55,23 @@ RDB_DECLARE_SERIALIZABLE(rget_item_t);
 
 void debug_print(printf_buffer_t *, const rget_item_t &);
 
-typedef std::vector<rget_item_t> stream_t;
+typedef std::vector<rget_item_t> raw_stream_t;
+struct keyed_stream_t {
+    raw_stream_t stream;
+    // RSI: make sure this is actually filled in.
+    store_key_t last_key;
+};
+struct stream_t {
+    // When we first construct a `stream_t`, it's always for a single shard.
+    stream_t(region_t region, store_key_t last_key)
+        : substreams{{
+            std::move(region),
+                keyed_stream_t{raw_stream_t(), std::move(last_key)}}} { }
+    stream_t(std::map<region_t, keyed_stream_t> &&_substreams)
+        : substreams(std::move(_substreams)) { }
+    stream_t() { }
+    std::map<region_t, keyed_stream_t> substreams;
+};
 
 class optimizer_t {
 public:
@@ -308,6 +325,8 @@ public:
 struct limit_read_t {
     is_primary_t is_primary;
     size_t n;
+    region_t region;
+    store_key_t last_key;
     sorting_t sorting;
     std::vector<scoped_ptr_t<op_t> > *ops;
 };
@@ -352,14 +371,17 @@ public:
     eager_acc_t() { }
     virtual ~eager_acc_t() { }
     virtual void operator()(env_t *env, groups_t *groups) = 0;
-    virtual void add_res(env_t *env, result_t *res) = 0;
+    virtual void add_res(env_t *env, result_t *res, sorting_t sorting) = 0;
     virtual scoped_ptr_t<val_t> finish_eager(
         backtrace_id_t bt, bool is_grouped,
         const ql::configured_limits_t &limits) = 0;
 };
 
-scoped_ptr_t<accumulator_t> make_append(const sorting_t &sorting, batcher_t *batcher);
-//                                                        NULL if unsharding ^^^^^^^
+scoped_ptr_t<accumulator_t> make_append(region_t region,
+                                        store_key_t last_key,
+                                        sorting_t sorting,
+                                        batcher_t *batcher);
+//                              NULL if unsharding ^^^^^^^
 scoped_ptr_t<accumulator_t> make_limit_append(size_t n, sorting_t sorting);
 scoped_ptr_t<accumulator_t> make_terminal(const terminal_variant_t &t);
 scoped_ptr_t<eager_acc_t> make_to_array();

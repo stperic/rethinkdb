@@ -745,7 +745,7 @@ sorting_t flip(sorting_t sorting) {
 }
 
 std::vector<item_t> mangle_sort_truncate_stream(
-    stream_t &&stream, is_primary_t is_primary, sorting_t sorting, size_t n) {
+    raw_stream_t &&stream, is_primary_t is_primary, sorting_t sorting, size_t n) {
     std::vector<item_t> vec;
     vec.reserve(stream.size());
     for (auto &&item : stream) {
@@ -937,8 +937,19 @@ public:
             env,
             batchspec_t::all(),
             std::vector<transform_variant_t>(),
-            boost::optional<terminal_variant_t>(limit_read_t{
-                    is_primary_t::YES, n, sorting, ops}),
+            boost::optional<terminal_variant_t>(
+                limit_read_t{
+                    is_primary_t::YES,
+                    n,
+                    // This code uses the same generic code path as a normal
+                    // read, and a normal read needs to keep track of the
+                    // region and last seen key for unsharding, but we
+                    // discard this information from the response later so
+                    // it can be whatever we want.
+                    region_t(),
+                    store_key_t::min(),
+                    sorting,
+                    ops}),
             sorting,
             &resp,
             release_superblock_t::KEEP);
@@ -949,9 +960,11 @@ public:
             throw *exc;
         }
         stream_t stream = groups_to_batch(gs->get_underlying_map());
-        guarantee(stream.size() <= n);
+        guarantee(stream.substreams.size() == 1);
+        raw_stream_t *raw_stream = &stream.substreams.begin()->second.stream;
+        guarantee(raw_stream->size() <= n);
         std::vector<item_t> item_vec = mangle_sort_truncate_stream(
-            std::move(stream), is_primary_t::YES, sorting, n);
+            std::move(*raw_stream), is_primary_t::YES, sorting, n);
         return item_vec;
     }
 
@@ -983,7 +996,17 @@ public:
             batchspec_t::all(), // Terminal takes care of early termination
             std::vector<transform_variant_t>(),
             boost::optional<terminal_variant_t>(limit_read_t{
-                    is_primary_t::NO, n, sorting, ops}),
+                    is_primary_t::NO,
+                    n,
+                    // This code uses the same generic code path as a normal
+                    // read, and a normal read needs to keep track of the
+                    // region and last seen key for unsharding, but we
+                    // discard this information from the response later so
+                    // it can be whatever we want.
+                    region_t(),
+                    store_key_t::min(),
+                    sorting,
+                    ops}),
             *pk_range,
             sorting,
             *ref.sindex_info,
@@ -996,8 +1019,10 @@ public:
             throw *exc;
         }
         stream_t stream = groups_to_batch(gs->get_underlying_map());
+        guarantee(stream.substreams.size() == 1);
+        raw_stream_t *raw_stream = &stream.substreams.begin()->second.stream;
         std::vector<item_t> item_vec = mangle_sort_truncate_stream(
-            std::move(stream), is_primary_t::NO, sorting, n);
+            std::move(*raw_stream), is_primary_t::NO, sorting, n);
         return item_vec;
     }
 
@@ -1074,11 +1099,10 @@ void limit_manager_t::commit(
         std::vector<item_t> s;
         boost::optional<exc_t> exc;
         try {
-            s = read_more(
-                sindex_ref,
-                spec.range.sorting,
-                start,
-                spec.limit - item_queue.size());
+            s = read_more(sindex_ref,
+                          spec.range.sorting,
+                          start,
+                          spec.limit - item_queue.size());
         } catch (const exc_t &e) {
             exc = e;
         }

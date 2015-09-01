@@ -126,13 +126,11 @@ struct rget_read_response_t {
     boost::optional<changefeed_stamp_response_t> stamp_response;
     ql::result_t result;
     ql::skey_version_t skey_version;
-    bool truncated;
-    store_key_t last_key;
 
     rget_read_response_t()
-        : skey_version(ql::skey_version_t::pre_1_16), truncated(false) { }
+        : skey_version(ql::skey_version_t::pre_1_16) { }
     explicit rget_read_response_t(const ql::exc_t &ex)
-        : result(ex), skey_version(ql::skey_version_t::pre_1_16), truncated(false) { }
+        : result(ex), skey_version(ql::skey_version_t::pre_1_16) { }
 };
 RDB_DECLARE_SERIALIZABLE_FOR_CLUSTER(rget_read_response_t);
 
@@ -290,6 +288,7 @@ public:
 
     rget_read_t(boost::optional<changefeed_stamp_t> &&_stamp,
                 region_t _region,
+                std::map<region_t, store_key_t> _hints,
                 std::map<std::string, ql::wire_func_t> _optargs,
                 std::string _table_name,
                 ql::batchspec_t _batchspec,
@@ -299,6 +298,7 @@ public:
                 sorting_t _sorting)
     : stamp(std::move(_stamp)),
       region(std::move(_region)),
+      hints(std::move(_hints)),
       optargs(std::move(_optargs)),
       table_name(std::move(_table_name)),
       batchspec(std::move(_batchspec)),
@@ -310,6 +310,7 @@ public:
     boost::optional<changefeed_stamp_t> stamp;
 
     region_t region; // We need this even for sindex reads due to sharding.
+    std::map<region_t, store_key_t> hints;
     std::map<std::string, ql::wire_func_t> optargs;
     std::string table_name;
     ql::batchspec_t batchspec; // used to size batches

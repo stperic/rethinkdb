@@ -272,7 +272,7 @@ struct rdb_read_visitor_t : public boost::static_visitor<void> {
     void operator()(const changefeed_limit_subscribe_t &s) {
         ql::env_t env(ctx, ql::return_empty_normal_batches_t::NO,
                       interruptor, s.optargs, trace);
-        ql::stream_t stream;
+        ql::raw_stream_t stream;
         {
             std::vector<scoped_ptr_t<ql::op_t> > ops;
             for (const auto &transform : s.spec.range.transforms) {
@@ -286,6 +286,10 @@ struct rdb_read_visitor_t : public boost::static_visitor<void> {
                 rget.terminal = ql::limit_read_t{
                     is_primary_t::NO,
                     s.spec.limit,
+                    s.region,
+                    !reversed(s.spec.range.sorting)
+                        ? store_key_t::min()
+                        : store_key_t::max(),
                     s.spec.range.sorting,
                     &ops};
                 rget.sindex = sindex_rangespec_t(
@@ -296,6 +300,10 @@ struct rdb_read_visitor_t : public boost::static_visitor<void> {
                 rget.terminal = ql::limit_read_t{
                     is_primary_t::YES,
                     s.spec.limit,
+                    s.region,
+                    !reversed(s.spec.range.sorting)
+                        ? store_key_t::min()
+                        : store_key_t::max(),
                     s.spec.range.sorting,
                     &ops};
             }
@@ -312,7 +320,9 @@ struct rdb_read_visitor_t : public boost::static_visitor<void> {
                 response->response = resp;
                 return;
             }
-            stream = groups_to_batch(gs->get_underlying_map());
+            ql::stream_t read_stream = groups_to_batch(gs->get_underlying_map());
+            guarantee(read_stream.substreams.size() == 1);
+            stream = std::move(read_stream.substreams.begin()->second.stream);
         }
         auto lvec = ql::changefeed::mangle_sort_truncate_stream(
             std::move(stream),

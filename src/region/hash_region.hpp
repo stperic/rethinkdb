@@ -246,8 +246,11 @@ bool operator!=(const hash_region_t<inner_region_t> &r1,
 
 // Used for making std::sets of hash_region_t.
 template <class inner_region_t>
-bool operator<(const hash_region_t<inner_region_t> &r1, const hash_region_t<inner_region_t> &r2) {
-    return (r1.beg < r2.beg || (r1.beg == r2.beg && (r1.end < r2.end || (r1.end == r2.end && r1.inner < r2.inner))));
+bool operator<(const hash_region_t<inner_region_t> &r1,
+               const hash_region_t<inner_region_t> &r2) {
+    return (r1.beg < r2.beg
+            || (r1.beg == r2.beg
+                && (r1.end < r2.end || (r1.end == r2.end && r1.inner < r2.inner))));
 }
 
 

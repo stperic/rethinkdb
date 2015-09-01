@@ -7,6 +7,16 @@
 #include "region/hash_region.hpp"
 
 typedef hash_region_t<key_range_t> region_t;
+struct hash_range_t {
+    uint64_t beg, end;
+    bool operator<(const hash_range_t &o) const {
+        return (beg < o.beg)
+            ? true
+            : ((beg > o.beg)
+               ? false
+               : end < o.end);
+    }
+};
 
 inline bool region_is_empty(const key_range_t &r) {
     return r.is_empty();
@@ -27,10 +37,5 @@ inline bool region_overlaps(const key_range_t &r1, const key_range_t &r2) THROWS
 MUST_USE region_join_result_t region_join(const std::vector<key_range_t> &vec, key_range_t *out) THROWS_NOTHING;
 
 std::vector<key_range_t> region_subtract_many(key_range_t a, const std::vector<key_range_t>& b);
-
-
-
-
-
 
 #endif  // REGION_REGION_HPP_

@@ -197,15 +197,11 @@ collect_all_geo_intersecting_cb_t::collect_all_geo_intersecting_cb_t(
     : geo_intersecting_cb_t(_slice, std::move(_sindex), _job.env, &distinct_emitted),
       job(std::move(_job)), response(_resp_out) {
     guarantee(response != NULL);
-    response->last_key = _sindex_range.left;
     init_query(_query_geometry);
 }
 
 void collect_all_geo_intersecting_cb_t::finish() THROWS_ONLY(interrupted_exc_t) {
     job.accumulator->finish(&response->result);
-    if (job.accumulator->should_send_batch()) {
-        response->truncated = true;
-    }
 }
 
 bool collect_all_geo_intersecting_cb_t::post_filter(
@@ -220,10 +216,6 @@ continue_bool_t collect_all_geo_intersecting_cb_t::emit_result(
         store_key_t &&key,
         ql::datum_t &&val)
         THROWS_ONLY(interrupted_exc_t, ql::base_exc_t, geo_exception_t) {
-    // Update the last considered key.
-    rassert(response->last_key <= key);
-    response->last_key = key;
-
     ql::groups_t data;
     data = {{ql::datum_t(), ql::datums_t{std::move(val)}}};
 

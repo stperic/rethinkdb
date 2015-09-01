@@ -36,6 +36,7 @@ struct make_sindex_read_t {
             rget_read_t(
                 boost::optional<changefeed_stamp_t>(),
                 region_t::universe(),
+                std::map<region_t, store_key_t>(),
                 std::map<std::string, ql::wire_func_t>(),
                 "",
                 ql::batchspec_t::default_for(ql::batch_type_t::NORMAL),

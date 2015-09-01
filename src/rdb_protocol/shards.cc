@@ -128,8 +128,11 @@ private:
 
 class append_t : public grouped_acc_t<stream_t> {
 public:
-    append_t(sorting_t _sorting, batcher_t *_batcher)
-        : grouped_acc_t<stream_t>(stream_t()),
+    append_t(region_t region,
+             store_key_t last_key,
+             sorting_t _sorting,
+             batcher_t *_batcher)
+        : grouped_acc_t<stream_t>(stream_t(std::move(region), std::move(last_key))),
           sorting(_sorting), key_le(sorting), batcher(_batcher) { }
 protected:
     virtual bool should_send_batch() {
@@ -147,7 +150,9 @@ protected:
         datum_t rget_sindex_val = (sorting == sorting_t::UNORDERED)
             ? datum_t()
             : sindex_val;
-        stream->push_back(rget_item_t(store_key_t(key), rget_sindex_val, el));
+        guarantee(stream->substreams.size() ==  1);
+        stream->substreams.begin()->second.stream.push_back(
+            rget_item_t(store_key_t(key), rget_sindex_val, el));
         return true;
     }
 
@@ -158,40 +163,12 @@ protected:
 
     virtual void unshard_impl(env_t *,
                               stream_t *out,
-                              const store_key_t &last_key,
+                              const store_key_t &,
                               const std::vector<stream_t *> &streams) {
-        uint64_t sz = 0;
-        for (auto it = streams.begin(); it != streams.end(); ++it) {
-            sz += (*it)->size();
-        }
-        out->reserve(sz);
-        if (sorting == sorting_t::UNORDERED) {
-            for (auto it = streams.begin(); it != streams.end(); ++it) {
-                for (auto item = (*it)->begin(); item != (*it)->end(); ++item) {
-                    if (key_le.is_le(item->key, last_key)) {
-                        out->push_back(std::move(*item));
-                    }
-                }
-            }
-        } else {
-            // We do a merge sort to preserve sorting.
-            std::vector<std::pair<stream_t::iterator, stream_t::iterator> > v;
-            v.reserve(streams.size());
-            for (auto it = streams.begin(); it != streams.end(); ++it) {
-                v.push_back(std::make_pair((*it)->begin(), (*it)->end()));
-            }
-            for (;;) {
-                stream_t::iterator *best = NULL;
-                for (auto it = v.begin(); it != v.end(); ++it) {
-                    if (it->first != it->second) {
-                        if (best == NULL || key_le.is_le(it->first->key, (*best)->key)) {
-                            best = &it->first;
-                        }
-                    }
-                }
-                if (best == NULL || !key_le.is_le((*best)->key, last_key)) break;
-                out->push_back(std::move(**best));
-                ++(*best);
+        for (auto &&stream : streams) {
+            for (auto &&pair : stream->substreams) {
+                bool inserted = out->substreams.insert(pair).second;
+                guarantee(inserted);
             }
         }
     }
@@ -201,8 +178,12 @@ private:
     batcher_t *const batcher;
 };
 
-scoped_ptr_t<accumulator_t> make_append(const sorting_t &sorting, batcher_t *batcher) {
-    return make_scoped<append_t>(sorting, batcher);
+scoped_ptr_t<accumulator_t> make_append(region_t region,
+                                        store_key_t last_key,
+                                        sorting_t sorting,
+                                        batcher_t *batcher) {
+    return make_scoped<append_t>(
+        std::move(region), std::move(last_key), sorting, batcher);
 }
 
 // This has to inherit from `eager_acc_t` so it can be produced in the terminal
@@ -213,9 +194,11 @@ public:
     limit_append_t(
         is_primary_t _is_primary,
         size_t _n,
+        region_t region,
+        store_key_t last_key,
         sorting_t sorting,
         std::vector<scoped_ptr_t<op_t> > *_ops)
-        : append_t(sorting, &batcher),
+        : append_t(region, last_key, sorting, &batcher),
           is_primary(_is_primary),
           seen_distinct(false),
           seen(0),
@@ -226,7 +209,7 @@ private:
     virtual void operator()(env_t *, groups_t *) {
         guarantee(false); // Don't use this as an eager accumulator.
     }
-    virtual void add_res(env_t *, result_t *) {
+    virtual void add_res(env_t *, result_t *, sorting_t) {
         guarantee(false); // Don't use this as an eager accumulator.
     }
     virtual scoped_ptr_t<val_t> finish_eager(
@@ -248,12 +231,17 @@ private:
         size_t seen_this_time = 0;
         {
             stream_t substream;
+            guarantee(stream->substreams.size() == 1);
+            substream.substreams.insert(
+                std::make_pair(stream->substreams.begin()->first, keyed_stream_t()));
             ret = append_t::accumulate(env, el, &substream, key, sindex_val);
-            for (auto &&item : substream) {
+            for (auto &&item : substream.substreams.begin()->second.stream) {
                 if (boost::optional<datum_t> d
                     = ql::changefeed::apply_ops(item.data, *ops, env, item.sindex_key)) {
                     item.data = *d;
-                    stream->push_back(std::move(item));
+                    guarantee(stream->substreams.size() == 1);
+                    stream->substreams.begin()->second.stream.push_back(
+                        std::move(item));
                     seen_this_time += 1;
                 }
             }
@@ -265,8 +253,10 @@ private:
                     seen_distinct = true;
                 }
             } else {
-                guarantee(stream->size() > 0);
-                rget_item_t *last = &stream->back();
+                guarantee(stream->substreams.size() == 1);
+                raw_stream_t *raw_stream = &stream->substreams.begin()->second.stream;
+                guarantee(raw_stream->size() > 0);
+                rget_item_t *last = &raw_stream->back();
                 if (start_sindex) {
                     std::string cur =
                         datum_t::extract_secondary(key_to_unescaped_str(last->key));
@@ -336,7 +326,7 @@ private:
         gs->clear();
     }
 
-    virtual void add_res(env_t *env, result_t *res) {
+    virtual void add_res(env_t *env, result_t *res, sorting_t sorting) {
         grouped_t<stream_t> *streams = boost::get<grouped_t<stream_t> >(res);
         r_sanity_check(streams);
 
@@ -345,7 +335,9 @@ private:
         for (auto kv = streams->begin(); kv != streams->end(); ++kv) {
             datums_t *lst = &groups[kv->first];
             stream_t *stream = &kv->second;
-            size += stream->size();
+            for (auto &&pair : stream->substreams) {
+                size += pair.second.stream.size();
+            }
             if (is_grouped_data(streams, kv->first)) {
                 rcheck_toplevel(
                     size <= env->limits().array_size_limit(), base_exc_t::RESOURCE,
@@ -359,8 +351,29 @@ private:
                               env->limits().array_size_limit()).c_str());
             }
 
-            for (auto it = stream->begin(); it != stream->end(); ++it) {
-                lst->push_back(std::move(it->data));
+            // It's safe to YOLO unshard like this because without considering
+            // `last_key` because whoever is using `to_array` should be calling
+            // `accumulate_all`.
+            // RSI: guarantee  that `last_key` is `max`?
+            // RSI: Make this more efficient for unordered streams?
+            std::vector<std::pair<raw_stream_t::iterator, raw_stream_t::iterator> > v;
+            v.reserve(stream->substreams.size());
+            for (auto &&pair : stream->substreams) {
+                v.push_back(std::make_pair(pair.second.stream.begin(),
+                                           pair.second.stream.end()));
+            }
+            for (;;) {
+                raw_stream_t::iterator *best = nullptr;
+                for (auto &&pair : v) {
+                    if (pair.first != pair.second) {
+                        if (best == nullptr
+                            || is_better(pair.first->key, (*best)->key, sorting)) {
+                            best = &pair.first;
+                        }
+                    }
+                }
+                if (best == nullptr) break;
+                lst->push_back(std::move(((*best)++)->data));
             }
         }
     }
@@ -443,7 +456,7 @@ private:
     }
     virtual datum_t unpack(T *t) = 0;
 
-    virtual void add_res(env_t *env, result_t *res) {
+    virtual void add_res(env_t *env, result_t *res, sorting_t) {
         grouped_t<T> *acc = grouped_acc_t<T>::get_acc();
         const T *default_val = grouped_acc_t<T>::get_default_val();
         if (auto e = boost::get<exc_t>(res)) {
@@ -475,7 +488,8 @@ private:
                             const datum_t &el,
                             T *t) = 0;
 
-    virtual void unshard_impl(env_t *env, T *out, const store_key_t &, const std::vector<T *> &ts) {
+    virtual void unshard_impl(
+        env_t *env, T *out, const store_key_t &, const std::vector<T *> &ts) {
         for (auto it = ts.begin(); it != ts.end(); ++it) {
             unshard_impl(env, out, *it);
         }
@@ -715,7 +729,12 @@ public:
     }
     T *operator()(const limit_read_t &lr) const {
         return new limit_append_t(
-            lr.is_primary, lr.n, lr.sorting, lr.ops);
+            lr.is_primary,
+            lr.n,
+            lr.region,
+            lr.last_key,
+            lr.sorting,
+            lr.ops);
     }
 };
 
